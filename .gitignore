@@ -1,11 +1,42 @@
+# Rust build targets
 target/
+**/target/
+
+# Node dependencies and build dists
 node_modules/
+**/node_modules/
 dist/
+**/dist/
 build/
+
+# OS and IDE files
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+*.cert
+
+# Python cache
 *.pyc
 __pycache__/
-.env
-.env.local
+
+# Database and runtime local state
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.log
+
+# Raw specs and internal documentation
+spec.rtf
 spec.txt
+*.rtf
+data/
 antigravity-engineering-skills-v2-hybrid/
