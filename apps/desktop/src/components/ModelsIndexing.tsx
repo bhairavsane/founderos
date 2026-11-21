@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ModelConfigState } from '../types';
+import { fetchModelStatus } from '../services/api';
 
 export const ModelsIndexing: React.FC = () => {
-  const [config] = useState<ModelConfigState>({
+  const [config, setConfig] = useState<ModelConfigState>({
     ollamaConnected: true,
     embeddingModel: 'embeddinggemma-2:740m',
     dimension: 768,
@@ -11,6 +12,10 @@ export const ModelsIndexing: React.FC = () => {
     storageBudgetGb: 10.0,
     storageUsedGb: 1.45,
   });
+
+  useEffect(() => {
+    fetchModelStatus().then(setConfig);
+  }, []);
 
   const [profile, setProfile] = useState<'lite' | 'standard' | 'performance'>('standard');
 

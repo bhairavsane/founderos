@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CitationItem } from '../types';
 import { Sparkles, ExternalLink } from './Icons';
+import { askFounderOS, openSourceFile } from '../services/api';
 
 interface ChatMessage {
   id: string;
@@ -11,6 +12,7 @@ interface ChatMessage {
 
 export const AskFounderOS: React.FC = () => {
   const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'm1',
@@ -40,12 +42,28 @@ export const AskFounderOS: React.FC = () => {
     },
   ]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    const userMsg: ChatMessage = { id: `u-${Date.now()}`, sender: 'user', text: input };
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+    const q = input;
+    const userMsg: ChatMessage = { id: `u-${Date.now()}`, sender: 'user', text: q };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
+    setLoading(true);
+
+    try {
+      const res = await askFounderOS(q);
+      const botMsg: ChatMessage = {
+        id: `b-${Date.now()}`,
+        sender: 'assistant',
+        text: res.answer,
+        citations: res.citations,
+      };
+      setMessages((prev) => [...prev, botMsg]);
+    } finally {
+      setLoading(false);
+    }
   };
+
 
   return (
     <div style={{ padding: '32px 40px', maxWidth: '880px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', height: '100vh', boxSizing: 'border-box' }}>
@@ -107,11 +125,12 @@ export const AskFounderOS: React.FC = () => {
                         <span style={{ color: 'var(--muted)' }}>— {c.evidence}</span>
                       </div>
                       <button
-                        onClick={() => alert(`Opening: ${c.filePath}`)}
+                        onClick={() => openSourceFile(c.filePath)}
                         style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                       >
                         <ExternalLink size={12} />
                       </button>
+
                     </div>
                   ))}
                 </div>

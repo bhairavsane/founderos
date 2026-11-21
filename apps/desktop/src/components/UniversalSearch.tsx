@@ -1,36 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modality, SearchResultItem } from '../types';
 import { Search, ExternalLink } from './Icons';
+import { searchFounderOS, openSourceFile } from '../services/api';
 
 export const UniversalSearch: React.FC = () => {
   const [query, setQuery] = useState('');
   const [activeModality, setActiveModality] = useState<Modality | 'all'>('all');
-  const [results] = useState<SearchResultItem[]>([
-    {
-      id: 'res-1',
-      assetId: 'ast-1',
-      fileName: 'client_call_10min.wav',
-      filePath: '/Users/bhairav/Documents/founderos/data/client_call_10min.wav',
-      modality: 'audio',
-      snippet: 'Client Xerophylla Corp agreed to contract pricing of $43,820 after review.',
-      timestampOrPage: '07:20 - 07:50',
-      score: 0.94,
-      matchType: 'hybrid_fused',
-    },
-    {
-      id: 'res-2',
-      assetId: 'ast-2',
-      fileName: 'dashboard_blue_sidebar.png',
-      filePath: '/Users/bhairav/Documents/founderos/data/dashboard_blue_sidebar.png',
-      modality: 'image',
-      snippet: 'Direct 768-d vision embedding matching blue navigation layout and card grid.',
-      score: 0.89,
-      matchType: 'vector_semantic',
-    },
-  ]);
+  const [results, setResults] = useState<SearchResultItem[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    searchFounderOS(query, activeModality).then((res) => {
+      if (active) setResults(res);
+    });
+    return () => { active = false; };
+  }, [query, activeModality]);
 
   const handleOpenSource = (filePath: string) => {
-    alert(`Opening local file: ${filePath}`);
+    openSourceFile(filePath);
   };
 
   const filtered = results.filter((r) => activeModality === 'all' || r.modality === activeModality);

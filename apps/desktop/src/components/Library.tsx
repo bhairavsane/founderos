@@ -1,37 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AssetItem } from '../types';
 import { ExternalLink } from './Icons';
+import { fetchAssets, openSourceFile } from '../services/api';
 
 export const Library: React.FC = () => {
-  const [assets] = useState<AssetItem[]>([
-    {
-      id: 'ast-1',
-      fileName: 'financial_plan.txt',
-      filePath: '/Users/bhairav/Documents/founderos/data/financial_plan.txt',
-      mimeType: 'text/plain',
-      fileSize: 1048576,
-      status: 'indexed',
-      indexedAt: '2026-11-21 14:15',
-    },
-    {
-      id: 'ast-2',
-      fileName: 'client_call_10min.wav',
-      filePath: '/Users/bhairav/Documents/founderos/data/client_call_10min.wav',
-      mimeType: 'audio/wav',
-      fileSize: 19200000,
-      status: 'indexed',
-      indexedAt: '2026-11-21 14:18',
-    },
-    {
-      id: 'ast-3',
-      fileName: 'dashboard_blue_sidebar.png',
-      filePath: '/Users/bhairav/Documents/founderos/data/dashboard_blue_sidebar.png',
-      mimeType: 'image/png',
-      fileSize: 452000,
-      status: 'indexed',
-      indexedAt: '2026-11-21 14:20',
-    },
-  ]);
+  const [assets, setAssets] = useState<AssetItem[]>([]);
+
+  useEffect(() => {
+    fetchAssets().then(setAssets);
+  }, []);
 
   const formatBytes = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -99,11 +76,12 @@ export const Library: React.FC = () => {
                 <td style={{ padding: '12px 16px', color: 'var(--muted)' }}>{a.indexedAt}</td>
                 <td style={{ padding: '12px 16px' }}>
                   <button
-                    onClick={() => alert(`Opening: ${a.filePath}`)}
+                    onClick={() => openSourceFile(a.filePath)}
                     style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                   >
                     <ExternalLink size={14} />
                   </button>
+
                 </td>
               </tr>
             ))}
