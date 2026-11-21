@@ -1,0 +1,22 @@
+# GitHub Actions: CI runs the SAME gate the agent runs locally.
+name: ci
+on:
+  pull_request:
+  push: { branches: [main] }
+concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }
+permissions: { contents: read }
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci
+      - name: Deterministic gate
+        run: bash .agents/skills/verify-deterministic/scripts/verify.sh
+        env: { CI: "true", STRICT: "1" }
+  # Add after verify: build image, scan, push artifact, deploy staging, smoke test.
+  # Production deploy job should use an environment with required reviewers.

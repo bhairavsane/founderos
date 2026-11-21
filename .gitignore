@@ -1,0 +1,11 @@
+target/
+node_modules/
+dist/
+build/
+.DS_Store
+*.pyc
+__pycache__/
+.env
+.env.local
+spec.txt
+antigravity-engineering-skills-v2-hybrid/

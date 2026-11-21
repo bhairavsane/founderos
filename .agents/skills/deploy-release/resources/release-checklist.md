@@ -1,0 +1,11 @@
+# Release checklist: <version>
+- [ ] verify.sh full = exit 0 on release commit; CI green
+- [ ] Changelog + version bumped
+- [ ] Migrations backward compatible; rehearsed on realistic data; rollback noted
+- [ ] New env vars/secrets set in target env and in .env.example
+- [ ] Health/readiness endpoints OK; alerts + dashboards ready
+- [ ] Feature flags default off for risky paths
+- [ ] Rollback command and previous artifact id recorded
+- [ ] Human approval recorded (who, when)
+- [ ] Staging smoke PASS -> canary smoke PASS -> prod smoke PASS
+- [ ] Soak window watched: error rate, p95, saturation
