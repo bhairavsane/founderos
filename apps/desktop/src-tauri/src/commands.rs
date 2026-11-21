@@ -1,6 +1,7 @@
 use founderos_domain::{Citation, CitationType, Modality, SearchQuery, SearchResult};
-use founderos_pipeline::HybridRetriever;
+use founderos_pipeline::{FileScanner, HybridRetriever, IngestionPipeline, IndexingQueue};
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 
@@ -108,3 +109,18 @@ pub async fn open_source_file(file_path: String) -> Result<(), String> {
         Err(e) => Err(format!("Failed to open file: {e}")),
     }
 }
+
+#[tauri::command]
+pub async fn index_directory(
+    pipeline: tauri::State<'_, Arc<IngestionPipeline>>,
+    dir_path: String,
+) -> Result<usize, String> {
+    let scanner = FileScanner::default();
+    let files = scanner
+        .scan_directory(Path::new(&dir_path))
+        .map_err(|e| e.to_string())?;
+
+    let queue = IndexingQueue::new(pipeline.inner().clone());
+    queue.process_batch(files, None).await.map_err(|e| e.to_string())
+}
+

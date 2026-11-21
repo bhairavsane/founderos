@@ -20,16 +20,23 @@ pub fn run() {
         "sidecar".to_string(),
         "embeddinggemma-2:740m".to_string(),
     ));
+    let pipeline = Arc::new(founderos_pipeline::IngestionPipeline::new(
+        storage.clone(),
+        vector_repo.clone(),
+        embedding_adapter.clone(),
+    ));
     let retriever = Arc::new(HybridRetriever::new(storage, vector_repo, embedding_adapter));
 
     tauri::Builder::default()
         .manage(retriever)
+        .manage(pipeline)
         .invoke_handler(tauri::generate_handler![
             search,
             ask,
             list_assets,
             get_model_status,
-            open_source_file
+            open_source_file,
+            index_directory
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

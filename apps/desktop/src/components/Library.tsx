@@ -1,14 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { AssetItem } from '../types';
 import { ExternalLink } from './Icons';
-import { fetchAssets, openSourceFile } from '../services/api';
+import { fetchAssets, openSourceFile, indexDirectory } from '../services/api';
 
 export const Library: React.FC = () => {
   const [assets, setAssets] = useState<AssetItem[]>([]);
+  const [indexing, setIndexing] = useState(false);
 
   useEffect(() => {
     fetchAssets().then(setAssets);
   }, []);
+
+  const handleIndexFolder = async () => {
+    const dir = prompt('Enter absolute folder path to index:', '/Users/bhairav/Documents/founderos/data');
+    if (!dir) return;
+    setIndexing(true);
+    try {
+      const count = await indexDirectory(dir);
+      alert(`Indexed ${count} new files into FounderOS.`);
+      const updated = await fetchAssets();
+      setAssets(updated);
+    } finally {
+      setIndexing(false);
+    }
+  };
 
   const formatBytes = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -26,20 +41,22 @@ export const Library: React.FC = () => {
           </p>
         </div>
         <button
-          onClick={() => alert('Folder import opened')}
+          onClick={handleIndexFolder}
+          disabled={indexing}
           style={{
             padding: '8px 16px',
-            background: '#2563eb',
+            background: indexing ? '#4b5563' : '#2563eb',
             border: 'none',
             borderRadius: '6px',
             color: '#fff',
             fontWeight: 500,
             fontSize: '13px',
-            cursor: 'pointer',
+            cursor: indexing ? 'not-allowed' : 'pointer',
           }}
         >
-          + Index Folder / File
+          {indexing ? 'Indexing...' : '+ Index Folder / File'}
         </button>
+
       </div>
 
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>

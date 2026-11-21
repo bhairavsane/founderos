@@ -7,6 +7,7 @@ export const UniversalSearch: React.FC = () => {
   const [query, setQuery] = useState('');
   const [activeModality, setActiveModality] = useState<Modality | 'all'>('all');
   const [results, setResults] = useState<SearchResultItem[]>([]);
+  const [playingItem, setPlayingItem] = useState<SearchResultItem | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -111,24 +112,45 @@ export const UniversalSearch: React.FC = () => {
                   <span style={{ fontSize: '11px', color: 'var(--muted)' }}>({r.timestampOrPage})</span>
                 )}
               </div>
-              <button
-                onClick={() => handleOpenSource(r.filePath)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: '#1a2238',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text)',
-                  fontSize: '12px',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                }}
-              >
-                <ExternalLink size={12} />
-                Open Source
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {r.timestampOrPage && (
+                  <button
+                    onClick={() => setPlayingItem(r)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: '#1d4ed8',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '12px',
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ▶ Play ({r.timestampOrPage})
+                  </button>
+                )}
+                <button
+                  onClick={() => handleOpenSource(r.filePath)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: '#1a2238',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text)',
+                    fontSize: '12px',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <ExternalLink size={12} />
+                  Open Source
+                </button>
+              </div>
             </div>
             <p style={{ fontSize: '13px', color: '#c4cad4', lineHeight: 1.5 }}>{r.snippet}</p>
             <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: 'var(--muted)' }}>
@@ -138,6 +160,70 @@ export const UniversalSearch: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {playingItem && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.75)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: '12px',
+            padding: '24px',
+            width: '480px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong style={{ fontSize: '15px', color: 'var(--text)' }}>Playback: {playingItem.fileName}</strong>
+              <button
+                onClick={() => setPlayingItem(null)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: '18px', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ background: '#090a0f', borderRadius: '8px', padding: '32px 16px', textAlign: 'center', border: '1px dashed var(--border)' }}>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>
+                {playingItem.modality === 'video' ? '🎬' : '🎙️'}
+              </div>
+              <div style={{ fontSize: '14px', color: 'var(--text)', fontWeight: 600 }}>
+                Playing at timestamp: {playingItem.timestampOrPage}
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>
+                Scene segment: "{playingItem.snippet}"
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                onClick={() => handleOpenSource(playingItem.filePath)}
+                style={{
+                  padding: '8px 16px',
+                  background: '#2563eb',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: '#fff',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                }}
+              >
+                Open in Native Player
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

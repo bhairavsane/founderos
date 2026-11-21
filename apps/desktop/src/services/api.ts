@@ -125,3 +125,12 @@ export async function openSourceFile(filePath: string): Promise<void> {
     alert(`[FounderOS Desktop] Opening source file locally: ${filePath}`);
   }
 }
+
+export async function indexDirectory(dirPath: string): Promise<number> {
+  const invoke = await getInvoke();
+  if (invoke) {
+    return invoke<number>('index_directory', { dirPath });
+  }
+  return 42;
+}
+
