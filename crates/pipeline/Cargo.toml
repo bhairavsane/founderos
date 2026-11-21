@@ -1,0 +1,18 @@
+[package]
+name = "founderos-pipeline"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+founderos-domain = { path = "../domain" }
+founderos-storage = { path = "../storage" }
+founderos-runtime = { path = "../runtime" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+uuid.workspace = true
+chrono.workspace = true
