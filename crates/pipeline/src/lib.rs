@@ -6,6 +6,7 @@ pub mod file_watcher;
 pub mod indexing_queue;
 pub mod ingestion;
 pub mod media_processor;
+pub mod rag;
 pub mod retrieval;
 
 pub use chunking::{AudioChunker, TextChunker};
@@ -16,4 +17,5 @@ pub use file_watcher::{DirectoryWatcher, FsChangeEvent};
 pub use indexing_queue::{IndexingProgress, IndexingQueue};
 pub use ingestion::IngestionPipeline;
 pub use media_processor::MediaProcessor;
+pub use rag::{GroundedAnswer, RAGService};
 pub use retrieval::HybridRetriever;

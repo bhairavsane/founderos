@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod dto;
 
 use commands::*;
 use founderos_domain::VectorSignature;

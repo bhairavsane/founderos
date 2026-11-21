@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - 'wip-*'
   pull_request:
     branches:
       - main
@@ -23,7 +24,7 @@ jobs:
       matrix:
         include:
           - platform: 'macos-arm64'
-            os: 'macos-14'
+            os: 'macos-13'
             target: 'aarch64-apple-darwin'
           - platform: 'macos-x64'
             os: 'macos-13'

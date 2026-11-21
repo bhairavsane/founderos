@@ -1,42 +1,16 @@
-use founderos_domain::{Citation, CitationType, Modality, SearchQuery, SearchResult};
+use crate::dto::*;
+use founderos_domain::{Modality, SearchQuery};
 use founderos_pipeline::{FileScanner, HybridRetriever, IngestionPipeline, IndexingQueue};
-use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ModelStatusPayload {
-    pub ollama_connected: bool,
-    pub embedding_model: String,
-    pub dimension: usize,
-    pub chat_model: String,
-    pub is_chat_multimodal: bool,
-    pub storage_budget_gb: f64,
-    pub storage_used_gb: f64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AskResponsePayload {
-    pub answer: String,
-    pub citations: Vec<Citation>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InstalledModelInfo {
-    pub name: String,
-    pub filename: String,
-    pub installed: bool,
-    pub size_bytes: u64,
-    pub engine_version: String,
-}
 
 #[tauri::command]
 pub async fn search(
     retriever: tauri::State<'_, Arc<HybridRetriever>>,
     query_text: String,
     modality: String,
-) -> Result<Vec<SearchResult>, String> {
+) -> Result<Vec<SearchResultDto>, String> {
     let target_modalities = match modality.to_ascii_lowercase().as_str() {
         "text" => vec![Modality::Text],
         "image" => vec![Modality::Image],
@@ -57,25 +31,58 @@ pub async fn search(
         limit: 20,
     };
 
-    retriever.search(&query).await.map_err(|e| e.to_string())
+    let list = retriever.search(&query).await.map_err(|e| e.to_string())?;
+    Ok(list
+        .into_iter()
+        .map(|r| SearchResultDto {
+            id: r.chunk_id.to_string(),
+            asset_id: r.asset_id.to_string(),
+            file_name: r.file_name,
+            file_path: r.file_path,
+            modality: r.modality,
+            snippet: r.snippet,
+            timestamp_or_page: r.timestamp_or_page,
+            score: r.score,
+            match_type: r.match_type,
+        })
+        .collect())
 }
 
 #[tauri::command]
-pub async fn ask(question: String) -> Result<AskResponsePayload, String> {
-    let answer = format!(
-        "Based on grounded local memory, here is the verified information for: \"{question}\""
-    );
-    let citations = vec![Citation {
-        asset_id: uuid::Uuid::new_v4(),
-        file_path: "/data/sample.txt".to_string(),
-        file_name: "sample.txt".to_string(),
-        citation_type: CitationType::Native,
-        evidence_detail: "Direct 768-d semantic match".to_string(),
-        page_number: Some(1),
-        timestamp_start: None,
-        timestamp_end: None,
-    }];
-    Ok(AskResponsePayload { answer, citations })
+pub async fn ask(
+    retriever: tauri::State<'_, Arc<HybridRetriever>>,
+    question: String,
+) -> Result<AskResponsePayload, String> {
+    let rag = founderos_pipeline::RAGService::new(retriever.inner().clone());
+    let grounded = rag.ask(&question).await.map_err(|e| e.to_string())?;
+    let citations = grounded
+        .citations
+        .into_iter()
+        .map(|c| {
+            let loc = match (c.page_number, c.timestamp_start, c.timestamp_end) {
+                (Some(p), _, _) => Some(format!("Page {p}")),
+                (_, Some(s), Some(e)) => {
+                    let s_min = (s / 60.0).floor() as u32;
+                    let s_sec = (s % 60.0).floor() as u32;
+                    let e_min = (e / 60.0).floor() as u32;
+                    let e_sec = (e % 60.0).floor() as u32;
+                    Some(format!("{s_min:02}:{s_sec:02} - {e_min:02}:{e_sec:02}"))
+                }
+                _ => None,
+            };
+            CitationDto {
+                file_name: c.file_name,
+                file_path: c.file_path,
+                citation_type: c.citation_type,
+                evidence: c.evidence_detail,
+                timestamp_or_page: loc,
+            }
+        })
+        .collect();
+    Ok(AskResponsePayload {
+        answer: grounded.answer,
+        citations,
+    })
 }
 
 #[tauri::command]
