@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod dto;
 
 use commands::*;
 use founderos_domain::VectorSignature;
@@ -29,6 +30,7 @@ pub fn run() {
             get_model_status,
             list_installed_models,
             download_model,
+            import_model,
             open_source_file,
             index_directory
         ])

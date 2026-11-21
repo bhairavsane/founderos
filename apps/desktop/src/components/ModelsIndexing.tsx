@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ModelConfigState } from '../types';
-import { fetchModelStatus, listInstalledModels, downloadModel, InstalledModelInfo } from '../services/api';
+import { fetchModelStatus, listInstalledModels, downloadModel, importOfflineModel, InstalledModelInfo } from '../services/api';
 
 export const ModelsIndexing: React.FC = () => {
   const [config, setConfig] = useState<ModelConfigState>({
@@ -41,6 +41,18 @@ export const ModelsIndexing: React.FC = () => {
     } catch {
       clearInterval(interval);
       setDownloading(null);
+    }
+  };
+
+  const handleImport = async (modelName: string) => {
+    const p = prompt(`Enter local file path to ${modelName} .gguf file:`);
+    if (!p) return;
+    try {
+      await importOfflineModel(p, modelName);
+      alert('Offline weights verified (SHA-256) and imported.');
+      listInstalledModels().then(setModels);
+    } catch (e) {
+      alert(`Import failed: ${e}`);
     }
   };
 
@@ -107,13 +119,21 @@ export const ModelsIndexing: React.FC = () => {
                 {m.installed ? (
                   <span style={{ fontSize: '12px', color: '#34d399', fontWeight: 600 }}>✓ Installed</span>
                 ) : (
-                  <button
-                    onClick={() => handleDownload(m.name)}
-                    disabled={downloading === m.name}
-                    style={{ padding: '6px 14px', borderRadius: '4px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}
-                  >
-                    {downloading === m.name ? `Downloading ${progress}%` : 'Download'}
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => handleDownload(m.name)}
+                      disabled={downloading === m.name}
+                      style={{ padding: '6px 14px', borderRadius: '4px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}
+                    >
+                      {downloading === m.name ? `Downloading ${progress}%` : 'Download'}
+                    </button>
+                    <button
+                      onClick={() => handleImport(m.name)}
+                      style={{ padding: '6px 10px', borderRadius: '4px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)', cursor: 'pointer', fontSize: '11px' }}
+                    >
+                      Import
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

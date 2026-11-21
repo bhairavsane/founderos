@@ -6,22 +6,37 @@ import { fetchAssets, openSourceFile, indexDirectory } from '../services/api';
 export const Library: React.FC = () => {
   const [assets, setAssets] = useState<AssetItem[]>([]);
   const [indexing, setIndexing] = useState(false);
+  const [folderPath, setFolderPath] = useState('/Users/bhairav/Documents/founderos/data');
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   useEffect(() => {
     fetchAssets().then(setAssets);
   }, []);
 
-  const handleIndexFolder = async () => {
-    const dir = prompt('Enter absolute folder path to index:', '/Users/bhairav/Documents/founderos/data');
+  const handleIndexFolder = async (pathToIndex?: string) => {
+    const dir = pathToIndex || folderPath.trim();
     if (!dir) return;
     setIndexing(true);
+    setStatusMessage(`Scanning and indexing files from ${dir}...`);
     try {
       const count = await indexDirectory(dir);
-      alert(`Indexed ${count} new files into FounderOS.`);
+      setStatusMessage(`Successfully indexed ${count} files into 768-d multimodal store.`);
       const updated = await fetchAssets();
       setAssets(updated);
+    } catch (e) {
+      setStatusMessage(`Indexing failed: ${e}`);
     } finally {
       setIndexing(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const droppedPath = (e.dataTransfer.files[0] as unknown as { path?: string }).path || folderPath;
+      handleIndexFolder(droppedPath);
     }
   };
 
@@ -33,30 +48,67 @@ export const Library: React.FC = () => {
 
   return (
     <div style={{ padding: '32px 40px', maxWidth: '960px', margin: '0 auto', width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text)' }}>Knowledge Library</h1>
-          <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '4px' }}>
-            Local files indexed with 768-d multimodal vectors and full-text index.
-          </p>
-        </div>
-        <button
-          onClick={handleIndexFolder}
-          disabled={indexing}
-          style={{
-            padding: '8px 16px',
-            background: indexing ? '#4b5563' : '#2563eb',
-            border: 'none',
-            borderRadius: '6px',
-            color: '#fff',
-            fontWeight: 500,
-            fontSize: '13px',
-            cursor: indexing ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {indexing ? 'Indexing...' : '+ Index Folder / File'}
-        </button>
+      <div style={{ marginBottom: '20px' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text)' }}>Knowledge Library</h1>
+        <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '4px' }}>
+          Index company files into private local memory with universal 768-d vectors and FTS5.
+        </p>
+      </div>
 
+      <div
+        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={handleDrop}
+        style={{
+          background: isDragOver ? '#1e284a' : 'var(--card)',
+          border: isDragOver ? '2px dashed #3b82f6' : '1px solid var(--border)',
+          borderRadius: '8px',
+          padding: '16px 20px',
+          marginBottom: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+        }}
+      >
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <input
+            type="text"
+            value={folderPath}
+            onChange={(e) => setFolderPath(e.target.value)}
+            placeholder="Enter directory path (e.g. /path/to/company/docs)"
+            style={{
+              flex: 1,
+              background: '#0d111d',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              color: 'var(--text)',
+              fontSize: '13px',
+              outline: 'none',
+            }}
+          />
+          <button
+            onClick={() => handleIndexFolder()}
+            disabled={indexing}
+            style={{
+              padding: '8px 18px',
+              background: indexing ? '#4b5563' : '#2563eb',
+              border: 'none',
+              borderRadius: '6px',
+              color: '#fff',
+              fontWeight: 500,
+              fontSize: '13px',
+              cursor: indexing ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {indexing ? 'Indexing...' : '+ Index Directory'}
+          </button>
+        </div>
+        <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', justifyContent: 'space-between' }}>
+          <span>Supported: PDF, DOCX, TXT, PNG, JPG, WAV, MP4 · Drag & drop supported</span>
+          {statusMessage && <span style={{ color: '#34d399', fontWeight: 500 }}>{statusMessage}</span>}
+        </div>
       </div>
 
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
@@ -94,11 +146,11 @@ export const Library: React.FC = () => {
                 <td style={{ padding: '12px 16px' }}>
                   <button
                     onClick={() => openSourceFile(a.filePath)}
-                    style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                    title="Open Source"
+                    style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer' }}
                   >
                     <ExternalLink size={14} />
                   </button>
-
                 </td>
               </tr>
             ))}
