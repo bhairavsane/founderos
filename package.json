@@ -1,0 +1,9 @@
+{
+  "name": "founderos-root",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix apps/desktop run build",
+    "lint": "npm --prefix apps/desktop run lint",
+    "test": "npm --prefix apps/desktop test"
+  }
+}
