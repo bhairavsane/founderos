@@ -14,3 +14,9 @@ pub enum StorageError {
     #[error("Incompatible signature: {0}")]
     IncompatibleSignature(String),
 }
+
+impl From<rusqlite::Error> for StorageError {
+    fn from(err: rusqlite::Error) -> Self {
+        Self::Database(err.to_string())
+    }
+}

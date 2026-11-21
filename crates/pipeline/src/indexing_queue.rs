@@ -1,6 +1,8 @@
+use crate::document_parser::DocumentParser;
 use crate::error::PipelineError;
 use crate::file_discovery::DiscoveredFile;
 use crate::ingestion::IngestionPipeline;
+use founderos_domain::Modality;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -19,6 +21,7 @@ pub struct IndexingQueue {
     pipeline: Arc<IngestionPipeline>,
     cancelled: Arc<AtomicBool>,
     paused: Arc<AtomicBool>,
+    parser: DocumentParser,
 }
 
 impl IndexingQueue {
@@ -27,6 +30,7 @@ impl IndexingQueue {
             pipeline,
             cancelled: Arc::new(AtomicBool::new(false)),
             paused: Arc::new(AtomicBool::new(false)),
+            parser: DocumentParser,
         }
     }
 
@@ -68,26 +72,36 @@ impl IndexingQueue {
                 });
             }
 
-            // Ingest based on file modality
-            let path_str = file.path.to_string_lossy().to_string();
-            match file.modality {
-                founderos_domain::Modality::Text => {
-                    let content = std::fs::read_to_string(&file.path).unwrap_or_default();
-                    let _ = self.pipeline.ingest_text_document(path_str, file.name, &content).await;
-                }
-                founderos_domain::Modality::Audio => {
-                    let dummy_bytes = std::fs::read(&file.path).unwrap_or_default();
-                    let _ = self.pipeline.ingest_audio_recording(path_str, file.name, 30.0, &dummy_bytes, &[]).await;
-                }
-                _ => {
-                    let dummy_bytes = std::fs::read(&file.path).unwrap_or_default();
-                    let _ = self.pipeline.ingest_audio_recording(path_str, file.name, 10.0, &dummy_bytes, &[]).await;
-                }
-            }
-
+            self.ingest_discovered_file(&file).await;
             completed += 1;
         }
 
         Ok(completed)
+    }
+
+    async fn ingest_discovered_file(&self, file: &DiscoveredFile) {
+        let path_str = file.path.to_string_lossy().to_string();
+        match file.modality {
+            Modality::Text => {
+                if let Ok(doc) = self.parser.parse_file(&file.path) {
+                    let _ = self.pipeline.ingest_document_asset(path_str, file.mime_type.clone(), &doc).await;
+                } else {
+                    let text = std::fs::read_to_string(&file.path).unwrap_or_default();
+                    let _ = self.pipeline.ingest_text_document(path_str, file.name.clone(), &text).await;
+                }
+            }
+            Modality::Image => {
+                let bytes = std::fs::read(&file.path).unwrap_or_default();
+                let _ = self.pipeline.ingest_image_asset(path_str, file.name.clone(), &bytes, Some(file.name.clone())).await;
+            }
+            Modality::Audio => {
+                let bytes = std::fs::read(&file.path).unwrap_or_default();
+                let _ = self.pipeline.ingest_audio_recording(path_str, file.name.clone(), 30.0, &bytes, &[]).await;
+            }
+            Modality::Video => {
+                let keyframes = vec![(0.0, vec![0u8; 128])];
+                let _ = self.pipeline.ingest_video_asset(path_str, file.name.clone(), &keyframes, None).await;
+            }
+        }
     }
 }

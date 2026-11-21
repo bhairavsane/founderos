@@ -2,3 +2,4 @@
 <!-- One imperative line per lesson. Merge duplicates. Delete obsolete lines. -->
 - Always run `verify.sh` before saying work is done.
 - Audio chunk transcript matching must use interval overlap (*s < end && *e > start) rather than strict containment.
+- In SQLite never use INSERT OR REPLACE with ON DELETE CASCADE foreign keys; use INSERT ... ON CONFLICT(id) DO UPDATE to prevent cascading child deletion.

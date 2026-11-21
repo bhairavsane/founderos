@@ -1,4 +1,5 @@
 pub mod chunking;
+pub mod document_parser;
 pub mod error;
 pub mod file_discovery;
 pub mod file_watcher;
@@ -8,6 +9,7 @@ pub mod media_processor;
 pub mod retrieval;
 
 pub use chunking::{AudioChunker, TextChunker};
+pub use document_parser::{DocumentParser, ParsedDocument, ParsedPage};
 pub use error::PipelineError;
 pub use file_discovery::{detect_mime_type, DiscoveredFile, FileScanner};
 pub use file_watcher::{DirectoryWatcher, FsChangeEvent};

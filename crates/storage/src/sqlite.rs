@@ -1,6 +1,6 @@
 use crate::error::StorageError;
 use chrono::Utc;
-use founderos_domain::{Asset, AssetStatus, Chunk};
+use founderos_domain::{Asset, AssetStatus, Chunk, Modality};
 use rusqlite::{params, Connection};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -14,18 +14,18 @@ impl SqliteStorage {
     pub fn open_in_memory() -> Result<Self, StorageError> {
         let conn = Connection::open_in_memory().map_err(|e| StorageError::Database(e.to_string()))?;
         let storage = Self { conn: Arc::new(Mutex::new(conn)) };
-        storage.migrate()?;
+        storage.initialize_schema()?;
         Ok(storage)
     }
 
     pub fn open(path: &str) -> Result<Self, StorageError> {
         let conn = Connection::open(path).map_err(|e| StorageError::Database(e.to_string()))?;
         let storage = Self { conn: Arc::new(Mutex::new(conn)) };
-        storage.migrate()?;
+        storage.initialize_schema()?;
         Ok(storage)
     }
 
-    pub fn migrate(&self) -> Result<(), StorageError> {
+    fn initialize_schema(&self) -> Result<(), StorageError> {
         let conn = self.conn.lock().map_err(|e| StorageError::Database(e.to_string()))?;
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS assets (
@@ -35,18 +35,17 @@ impl SqliteStorage {
                 status TEXT NOT NULL, metadata TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS chunks (
-                id TEXT PRIMARY KEY, asset_id TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-                chunk_index INTEGER NOT NULL, modality TEXT NOT NULL, text_content TEXT,
-                page_number INTEGER, timestamp_start REAL, timestamp_end REAL, metadata TEXT NOT NULL
+                id TEXT PRIMARY KEY, asset_id TEXT NOT NULL, chunk_index INTEGER NOT NULL,
+                modality TEXT NOT NULL, text_content TEXT, page_number INTEGER,
+                timestamp_start REAL, timestamp_end REAL, metadata TEXT NOT NULL,
+                FOREIGN KEY(asset_id) REFERENCES assets(id) ON DELETE CASCADE
             );
             CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
-                chunk_id UNINDEXED, asset_id UNINDEXED, content, tokenize = 'porter unicode61'
+                chunk_id UNINDEXED, asset_id UNINDEXED, content, tokenize='porter unicode61'
             );",
-        )
-        .map_err(|e| StorageError::Database(e.to_string()))?;
+        ).map_err(|e| StorageError::Database(e.to_string()))?;
         Ok(())
     }
-
 
     pub fn insert_asset(&self, asset: &Asset) -> Result<(), StorageError> {
         let conn = self.conn.lock().map_err(|e| StorageError::Database(e.to_string()))?;
@@ -57,20 +56,17 @@ impl SqliteStorage {
             AssetStatus::Failed => "failed",
         };
         conn.execute(
-            "INSERT OR REPLACE INTO assets (id, file_path, file_name, mime_type, file_size, sha256, created_at, modified_at, indexed_at, status, metadata)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            "INSERT INTO assets (id, file_path, file_name, mime_type, file_size, sha256, created_at, modified_at, indexed_at, status, metadata)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ON CONFLICT(id) DO UPDATE SET
+                file_path=excluded.file_path, file_name=excluded.file_name, mime_type=excluded.mime_type,
+                file_size=excluded.file_size, sha256=excluded.sha256, modified_at=excluded.modified_at,
+                indexed_at=excluded.indexed_at, status=excluded.status, metadata=excluded.metadata",
             params![
-                asset.id.to_string(),
-                asset.file_path,
-                asset.file_name,
-                asset.mime_type,
-                asset.file_size as i64,
-                asset.sha256,
-                asset.created_at.to_rfc3339(),
-                asset.modified_at.to_rfc3339(),
-                asset.indexed_at.map(|t| t.to_rfc3339()),
-                status_str,
-                asset.metadata.to_string(),
+                asset.id.to_string(), asset.file_path, asset.file_name, asset.mime_type,
+                asset.file_size as i64, asset.sha256, asset.created_at.to_rfc3339(),
+                asset.modified_at.to_rfc3339(), asset.indexed_at.map(|t| t.to_rfc3339()),
+                status_str, asset.metadata.to_string(),
             ],
         ).map_err(|e| StorageError::Database(e.to_string()))?;
         Ok(())
@@ -79,18 +75,16 @@ impl SqliteStorage {
     pub fn insert_chunk(&self, chunk: &Chunk) -> Result<(), StorageError> {
         let conn = self.conn.lock().map_err(|e| StorageError::Database(e.to_string()))?;
         conn.execute(
-            "INSERT OR REPLACE INTO chunks (id, asset_id, chunk_index, modality, text_content, page_number, timestamp_start, timestamp_end, metadata)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            "INSERT INTO chunks (id, asset_id, chunk_index, modality, text_content, page_number, timestamp_start, timestamp_end, metadata)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(id) DO UPDATE SET
+                chunk_index=excluded.chunk_index, modality=excluded.modality, text_content=excluded.text_content,
+                page_number=excluded.page_number, timestamp_start=excluded.timestamp_start, timestamp_end=excluded.timestamp_end,
+                metadata=excluded.metadata",
             params![
-                chunk.id.to_string(),
-                chunk.asset_id.to_string(),
-                chunk.chunk_index,
-                chunk.modality.as_str(),
-                chunk.text_content,
-                chunk.page_number,
-                chunk.timestamp_start,
-                chunk.timestamp_end,
-                chunk.metadata.to_string(),
+                chunk.id.to_string(), chunk.asset_id.to_string(), chunk.chunk_index,
+                chunk.modality.as_str(), chunk.text_content, chunk.page_number,
+                chunk.timestamp_start, chunk.timestamp_end, chunk.metadata.to_string(),
             ],
         ).map_err(|e| StorageError::Database(e.to_string()))?;
 
@@ -105,39 +99,26 @@ impl SqliteStorage {
 
     pub fn search_fts(&self, query: &str, limit: usize) -> Result<Vec<(Uuid, Uuid, f32, String)>, StorageError> {
         let conn = self.conn.lock().map_err(|e| StorageError::Database(e.to_string()))?;
-        let sanitized = query
-            .split_whitespace()
+        let sanitized = query.split_whitespace()
             .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()))
-            .filter(|w| !w.is_empty())
-            .map(|w| format!("\"{w}\""))
-            .collect::<Vec<_>>()
-            .join(" OR ");
+            .filter(|w| !w.is_empty()).map(|w| format!("\"{w}\""))
+            .collect::<Vec<_>>().join(" OR ");
         let match_expr = if sanitized.is_empty() { query.to_string() } else { sanitized };
 
-        let mut stmt = conn
-            .prepare(
-                "SELECT chunk_id, asset_id, bm25(chunks_fts) as rank, content
-                 FROM chunks_fts
-                 WHERE chunks_fts MATCH ?1
-                 ORDER BY rank ASC
-                 LIMIT ?2",
-            )
-            .map_err(|e| StorageError::Database(e.to_string()))?;
+        let mut stmt = conn.prepare(
+            "SELECT chunk_id, asset_id, bm25(chunks_fts) as rank, content FROM chunks_fts
+             WHERE chunks_fts MATCH ?1 ORDER BY rank ASC LIMIT ?2",
+        ).map_err(|e| StorageError::Database(e.to_string()))?;
 
-        let rows = stmt
-            .query_map(params![match_expr, limit as i64], |row| {
-                let chunk_id_str: String = row.get(0)?;
-                let asset_id_str: String = row.get(1)?;
-                let rank: f64 = row.get(2)?;
-                let snippet: String = row.get(3)?;
-                Ok((
-                    Uuid::parse_str(&chunk_id_str).unwrap_or_default(),
-                    Uuid::parse_str(&asset_id_str).unwrap_or_default(),
-                    rank as f32,
-                    snippet,
-                ))
-            })
-            .map_err(|e| StorageError::Database(e.to_string()))?;
+        let rows = stmt.query_map(params![match_expr, limit as i64], |row| {
+            let chunk_id_str: String = row.get(0)?;
+            let asset_id_str: String = row.get(1)?;
+            let rank: f64 = row.get(2)?;
+            let snippet: String = row.get(3)?;
+            Ok((Uuid::parse_str(&chunk_id_str).unwrap_or_default(),
+                Uuid::parse_str(&asset_id_str).unwrap_or_default(),
+                rank as f32, snippet))
+        }).map_err(|e| StorageError::Database(e.to_string()))?;
 
         let mut results = Vec::new();
         for r in rows {
@@ -148,42 +129,56 @@ impl SqliteStorage {
 
     pub fn get_asset(&self, id: &Uuid) -> Result<Option<Asset>, StorageError> {
         let conn = self.conn.lock().map_err(|e| StorageError::Database(e.to_string()))?;
-        let mut stmt = conn
-            .prepare("SELECT id, file_path, file_name, mime_type, file_size, sha256, created_at, modified_at, indexed_at, status, metadata FROM assets WHERE id = ?1")
-            .map_err(|e| StorageError::Database(e.to_string()))?;
+        let mut stmt = conn.prepare(
+            "SELECT id, file_path, file_name, mime_type, file_size, sha256, created_at, modified_at, indexed_at, status, metadata
+             FROM assets WHERE id = ?1",
+        ).map_err(|e| StorageError::Database(e.to_string()))?;
         let mut rows = stmt.query(params![id.to_string()]).map_err(|e| StorageError::Database(e.to_string()))?;
         if let Some(row) = rows.next().map_err(|e| StorageError::Database(e.to_string()))? {
-            let id_str: String = row.get(0).map_err(|e| StorageError::Database(e.to_string()))?;
-            let file_path: String = row.get(1).map_err(|e| StorageError::Database(e.to_string()))?;
-            let file_name: String = row.get(2).map_err(|e| StorageError::Database(e.to_string()))?;
-            let mime_type: String = row.get(3).map_err(|e| StorageError::Database(e.to_string()))?;
-            let file_size: i64 = row.get(4).map_err(|e| StorageError::Database(e.to_string()))?;
-            let sha256: String = row.get(5).map_err(|e| StorageError::Database(e.to_string()))?;
-            let status_str: String = row.get(9).map_err(|e| StorageError::Database(e.to_string()))?;
-            let meta_str: String = row.get(10).map_err(|e| StorageError::Database(e.to_string()))?;
-            let status = match status_str.as_str() {
+            let status = match row.get::<_, String>(9)?.as_str() {
                 "indexed" => AssetStatus::Indexed,
                 "processing" => AssetStatus::Processing,
                 "failed" => AssetStatus::Failed,
                 _ => AssetStatus::Pending,
             };
             Ok(Some(Asset {
-                id: Uuid::parse_str(&id_str).unwrap_or_default(),
-                file_path,
-                file_name,
-                mime_type,
-                file_size: file_size as u64,
-                sha256,
-                created_at: Utc::now(),
-                modified_at: Utc::now(),
-                indexed_at: None,
-                status,
-                metadata: serde_json::from_str(&meta_str).unwrap_or(serde_json::json!({})),
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap_or_default(),
+                file_path: row.get(1)?, file_name: row.get(2)?, mime_type: row.get(3)?,
+                file_size: row.get::<_, i64>(4)? as u64, sha256: row.get(5)?,
+                created_at: Utc::now(), modified_at: Utc::now(), indexed_at: None, status,
+                metadata: serde_json::from_str(&row.get::<_, String>(10)?).unwrap_or(serde_json::json!({})),
             }))
         } else {
             Ok(None)
         }
     }
+
+    pub fn list_chunks_for_asset(&self, asset_id: Uuid) -> Result<Vec<Chunk>, StorageError> {
+        let conn = self.conn.lock().map_err(|e| StorageError::Database(e.to_string()))?;
+        let mut stmt = conn.prepare(
+            "SELECT id, chunk_index, modality, text_content, page_number, timestamp_start, timestamp_end, metadata
+             FROM chunks WHERE asset_id = ?1 ORDER BY chunk_index ASC",
+        ).map_err(|e| StorageError::Database(e.to_string()))?;
+        let rows = stmt.query_map(params![asset_id.to_string()], |row| {
+            let modality_str: String = row.get(2)?;
+            let meta_str: String = row.get(7)?;
+            Ok(Chunk {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap_or_default(),
+                asset_id,
+                chunk_index: row.get(1)?,
+                modality: Modality::from_mime_type(&format!("{modality_str}/plain")),
+                text_content: row.get(3)?,
+                page_number: row.get(4)?,
+                timestamp_start: row.get(5)?,
+                timestamp_end: row.get(6)?,
+                metadata: serde_json::from_str(&meta_str).unwrap_or(serde_json::json!({})),
+            })
+        }).map_err(|e| StorageError::Database(e.to_string()))?;
+
+        let mut chunks = Vec::new();
+        for r in rows {
+            chunks.push(r.map_err(|e| StorageError::Database(e.to_string()))?);
+        }
+        Ok(chunks)
+    }
 }
-
-
