@@ -1,0 +1,34 @@
+{
+  "brand": "FounderOS",
+  "concept": "04 \u2014 Offset Index Slice (Isometric Stack)",
+  "colors": {
+    "surface": {
+      "obsidian": "#111214",
+      "charcoal": "#18181B",
+      "elevated": "#27272A",
+      "hairline": "rgba(255, 255, 255, 0.08)"
+    },
+    "metal": {
+      "titaniumHighlight": "#A1A1AA",
+      "titaniumMid": "#71717A",
+      "titaniumShadow": "#3F3F46"
+    },
+    "accent": {
+      "amberHighlight": "#FBBF24",
+      "amberPrimary": "#F59E0B",
+      "amberDeep": "#B45309"
+    },
+    "text": {
+      "primaryDark": "#F4F4F5",
+      "secondaryDark": "#A1A1AA",
+      "primaryLight": "#111214",
+      "secondaryLight": "#52525B"
+    }
+  },
+  "typography": {
+    "wordmarkFont": "Inter, SF Pro Display, Geist, sans-serif",
+    "founderWeight": 600,
+    "osWeight": 400,
+    "letterSpacing": "-0.02em"
+  }
+}
