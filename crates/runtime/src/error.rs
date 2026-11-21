@@ -5,6 +5,9 @@ pub enum RuntimeError {
     #[error("Ollama connection error: {0}")]
     OllamaConnection(String),
 
+    #[error("Embedding error: {0}")]
+    Embedding(String),
+
     #[error("Model not found: {0}")]
     ModelNotFound(String),
 

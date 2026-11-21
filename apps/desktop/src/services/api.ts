@@ -134,3 +134,49 @@ export async function indexDirectory(dirPath: string): Promise<number> {
   return 42;
 }
 
+export interface InstalledModelInfo {
+  name: string;
+  filename: string;
+  installed: boolean;
+  sizeBytes: number;
+  engineVersion: string;
+}
+
+export async function listInstalledModels(): Promise<InstalledModelInfo[]> {
+  const invoke = await getInvoke();
+  if (invoke) {
+    return invoke<InstalledModelInfo[]>('list_installed_models');
+  }
+  return [
+    {
+      name: 'embeddinggemma-2-740m-q8_0',
+      filename: 'embeddinggemma-2-740m-q8_0.gguf',
+      installed: true,
+      sizeBytes: 812445120,
+      engineVersion: 'llama.cpp-b3800',
+    },
+    {
+      name: 'mmproj-embeddinggemma-2-740m-f16',
+      filename: 'mmproj-embeddinggemma-2-740m-f16.gguf',
+      installed: true,
+      sizeBytes: 345221888,
+      engineVersion: 'llama.cpp-b3800',
+    },
+    {
+      name: 'llama-3.2-3b-instruct-q4_k_m',
+      filename: 'llama-3.2-3b-instruct-q4_k_m.gguf',
+      installed: false,
+      sizeBytes: 2020112000,
+      engineVersion: 'llama.cpp-b3800',
+    },
+  ];
+}
+
+export async function downloadModel(modelName: string): Promise<string> {
+  const invoke = await getInvoke();
+  if (invoke) {
+    return invoke<string>('download_model', { modelName });
+  }
+  return `/Users/bhairav/.founderos/models/${modelName}`;
+}
+

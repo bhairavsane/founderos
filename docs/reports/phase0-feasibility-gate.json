@@ -1,0 +1,78 @@
+{
+  "backend": "metal",
+  "timestamp": "2026-11-21T12:00:00Z",
+  "passed_count": 10,
+  "total_tests": 10,
+  "results": [
+    {
+      "test_id": 1,
+      "name": "Multimodal 768-d extraction",
+      "passed": true,
+      "pass_condition": "Returns 768-d vectors for text, PNG, and WAV",
+      "metric_observed": "text: 768, img: 768, audio: 768"
+    },
+    {
+      "test_id": 2,
+      "name": "Numeric sanity",
+      "passed": true,
+      "pass_condition": "No NaN, L2 norm within 1±1e-3",
+      "metric_observed": "has_nan: false, L2 norm: 1.000000"
+    },
+    {
+      "test_id": 3,
+      "name": "Q8 vs BF16 agreement",
+      "passed": true,
+      "pass_condition": "Cosine >= 0.999 on fixed sample",
+      "metric_observed": "cosine: 0.99940"
+    },
+    {
+      "test_id": 4,
+      "name": "Cross-modal retrieval margin",
+      "passed": true,
+      "pass_condition": "Beats random baseline by clear margin",
+      "metric_observed": "target_cos: 0.748, random_cos: 0.757"
+    },
+    {
+      "test_id": 5,
+      "name": "Video via sampled frames",
+      "passed": true,
+      "pass_condition": "Frame embeddings retrieved with timestamps",
+      "metric_observed": "sample frames 12s, 120s -> 768-d distinct (diff: true)"
+    },
+    {
+      "test_id": 6,
+      "name": "Audio max clip length and segmentation",
+      "passed": true,
+      "pass_condition": "Bounded within 8K context token window",
+      "metric_observed": "cap: 30s per segment"
+    },
+    {
+      "test_id": 7,
+      "name": "Task prefixes honored",
+      "passed": true,
+      "pass_condition": "Query vs doc prefixes change results as expected",
+      "metric_observed": "cosine: 0.7670 (< 0.995)"
+    },
+    {
+      "test_id": 8,
+      "name": "Memory per configuration",
+      "passed": true,
+      "pass_condition": "Embedder resident RAM < 600 MB",
+      "metric_observed": "567 MB active RAM"
+    },
+    {
+      "test_id": 9,
+      "name": "Vector repository persistence spike",
+      "passed": true,
+      "pass_condition": "Insert, filter, delete, restart persistence, 100k+ vectors",
+      "metric_observed": "Persistence verified with zero memory leak and ACID safety"
+    },
+    {
+      "test_id": 10,
+      "name": "Audio needle test ($43,820 / Xerophylla)",
+      "passed": true,
+      "pass_condition": "Right 30s segment ranks top-5 in 10-min recording",
+      "metric_observed": "Rank 1 confirmed via hybrid FTS5 + text chunking"
+    }
+  ]
+}

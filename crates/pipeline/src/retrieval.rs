@@ -1,6 +1,6 @@
 use crate::error::PipelineError;
 use founderos_domain::{calculate_rrf_score, MatchType, SearchQuery, SearchResult};
-use founderos_runtime::EmbeddingAdapter;
+use founderos_runtime::{InferenceProvider, TaskType};
 use founderos_storage::{SqliteStorage, VectorRepository};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -9,19 +9,19 @@ use uuid::Uuid;
 pub struct HybridRetriever {
     storage: SqliteStorage,
     vector_repo: Arc<dyn VectorRepository>,
-    embedding_adapter: Arc<dyn EmbeddingAdapter>,
+    provider: Arc<dyn InferenceProvider>,
 }
 
 impl HybridRetriever {
     pub fn new(
         storage: SqliteStorage,
         vector_repo: Arc<dyn VectorRepository>,
-        embedding_adapter: Arc<dyn EmbeddingAdapter>,
+        provider: Arc<dyn InferenceProvider>,
     ) -> Self {
         Self {
             storage,
             vector_repo,
-            embedding_adapter,
+            provider,
         }
     }
 
@@ -37,11 +37,18 @@ impl HybridRetriever {
         let mut chunk_types: HashMap<Uuid, MatchType> = HashMap::new();
 
         // 1. Vector Search
-        let query_vec = self
-            .embedding_adapter
-            .embed_text(text_query, true)
-            .await
-            .map_err(|e| PipelineError::Search(e.to_string()))?;
+        let query_vec = if let Some(ref media) = query.media_bytes {
+            let mod_type = query.target_modalities.first().copied().unwrap_or(founderos_domain::Modality::Image);
+            self.provider
+                .embed_media(media, mod_type, TaskType::SearchQuery)
+                .await
+                .map_err(|e| PipelineError::Search(e.to_string()))?
+        } else {
+            self.provider
+                .embed_text(text_query, TaskType::SearchQuery)
+                .await
+                .map_err(|e| PipelineError::Search(e.to_string()))?
+        };
 
         for modality in &query.target_modalities {
             let vec_results = self

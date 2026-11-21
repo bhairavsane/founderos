@@ -1,6 +1,6 @@
 use founderos_domain::{AssetStatus, Modality, VectorSignature};
 use founderos_pipeline::{DocumentParser, IngestionPipeline, ParsedDocument, ParsedPage};
-use founderos_runtime::SidecarEmbeddingAdapter;
+use founderos_runtime::DeterministicSidecarProvider;
 use founderos_storage::{InMemoryVectorStore, SqliteStorage};
 use std::sync::Arc;
 
@@ -10,15 +10,10 @@ async fn test_video_and_multipage_document_ingestion() {
     let _ = std::fs::remove_file(&temp_db);
 
     let storage = SqliteStorage::open(temp_db.to_str().unwrap()).unwrap();
-    let sig = VectorSignature {
-        model_tag: "embeddinggemma-2:740m".into(),
-        quantization: "f32".into(),
-        prefix_config: "canonical".into(),
-        dimension: 768,
-    };
+    let sig = VectorSignature::canonical("metal", "canonical_v1");
     let vector_repo = Arc::new(InMemoryVectorStore::new(sig));
-    let embedding_adapter = Arc::new(SidecarEmbeddingAdapter::new("sidecar".into(), "embeddinggemma-2:740m".into()));
-    let pipeline = IngestionPipeline::new(storage.clone(), vector_repo.clone(), embedding_adapter);
+    let provider = Arc::new(DeterministicSidecarProvider::new("metal"));
+    let pipeline = IngestionPipeline::new(storage.clone(), vector_repo.clone(), provider);
 
     // 1. Ingest multi-page document
     let doc = ParsedDocument {

@@ -1,11 +1,21 @@
 pub mod chat_adapter;
 pub mod embedding_adapter;
 pub mod error;
+pub mod feasibility_gate;
+pub mod model_downloader;
+pub mod model_manifest;
+pub mod provider;
 pub mod sidecar_adapter;
+pub mod sidecar_server;
 pub mod types;
 
 pub use chat_adapter::{ChatAdapter, OllamaChatAdapter};
 pub use embedding_adapter::{to_base64, EmbeddingAdapter, OllamaEmbeddingAdapter};
 pub use error::RuntimeError;
+pub use feasibility_gate::{FeasibilityGateRunner, GateTestResult, Phase0Report};
+pub use model_downloader::{DownloadProgress, ModelDownloader};
+pub use model_manifest::{ModelArtifact, PinnedModelManifest};
+pub use provider::{DeterministicSidecarProvider, HealthStatus, InferenceProvider, TaskType};
 pub use sidecar_adapter::SidecarEmbeddingAdapter;
+pub use sidecar_server::SidecarServer;
 pub use types::{ModelInfo, OllamaChatMessage, OllamaChatRequest, OllamaEmbedRequest};

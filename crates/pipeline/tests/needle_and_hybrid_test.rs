@@ -1,29 +1,21 @@
 use founderos_domain::{SearchQuery, VectorSignature};
 use founderos_pipeline::{HybridRetriever, IngestionPipeline};
-use founderos_runtime::SidecarEmbeddingAdapter;
+use founderos_runtime::DeterministicSidecarProvider;
 use founderos_storage::{InMemoryVectorStore, SqliteStorage};
 use std::sync::Arc;
 
 #[tokio::test]
 async fn test_needle_and_hybrid_search() {
-    let sig = VectorSignature {
-        model_tag: "embeddinggemma-2:740m".to_string(),
-        quantization: "q8_0".to_string(),
-        prefix_config: "v1_prefixed".to_string(),
-        dimension: 768,
-    };
+    let sig = VectorSignature::canonical("metal", "canonical_v1");
 
     let storage = SqliteStorage::open_in_memory().unwrap();
-    let vector_repo = Arc::new(InMemoryVectorStore::new(sig.clone()));
-    let embedding_adapter = Arc::new(SidecarEmbeddingAdapter::new(
-        "llama-sidecar".to_string(),
-        "embeddinggemma-2:740m".to_string(),
-    ));
+    let vector_repo = Arc::new(InMemoryVectorStore::new(sig));
+    let provider = Arc::new(DeterministicSidecarProvider::new("metal"));
 
     let pipeline = IngestionPipeline::new(
         storage.clone(),
         vector_repo.clone(),
-        embedding_adapter.clone(),
+        provider.clone(),
     );
 
     // Ingest text doc
@@ -54,7 +46,7 @@ async fn test_needle_and_hybrid_search() {
         .await
         .unwrap();
 
-    let retriever = HybridRetriever::new(storage, vector_repo, embedding_adapter);
+    let retriever = HybridRetriever::new(storage, vector_repo, provider);
 
     // Query needle
     let query = SearchQuery::new_text("Xerophylla pricing");

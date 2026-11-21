@@ -6,9 +6,26 @@ use uuid::Uuid;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct VectorSignature {
     pub model_tag: String,
-    pub quantization: String,
-    pub prefix_config: String,
+    pub text_quantization: String,
+    pub projector_quantization: String,
+    pub engine_version: String,
+    pub backend: String,
+    pub task_prefix: String,
     pub dimension: usize,
+}
+
+impl VectorSignature {
+    pub fn canonical(backend: &str, task_prefix: &str) -> Self {
+        Self {
+            model_tag: "embeddinggemma-2:740m".to_string(),
+            text_quantization: "Q8_0".to_string(),
+            projector_quantization: "F16".to_string(),
+            engine_version: "llama.cpp-b3800".to_string(),
+            backend: backend.to_string(),
+            task_prefix: task_prefix.to_string(),
+            dimension: 768,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -17,10 +34,7 @@ pub struct VectorRecord {
     pub chunk_id: Uuid,
     pub asset_id: Uuid,
     pub modality: Modality,
-    pub model_tag: String,
-    pub quantization: String,
-    pub prefix_config: String,
-    pub dimension: usize,
+    pub signature: VectorSignature,
     pub embedding: Vec<f32>,
 }
 
@@ -47,40 +61,39 @@ impl VectorRecord {
             chunk_id,
             asset_id,
             modality,
-            model_tag: signature.model_tag.clone(),
-            quantization: signature.quantization.clone(),
-            prefix_config: signature.prefix_config.clone(),
-            dimension: signature.dimension,
+            signature: signature.clone(),
             embedding: normalized,
         })
     }
 
-    pub fn signature(&self) -> VectorSignature {
-        VectorSignature {
-            model_tag: self.model_tag.clone(),
-            quantization: self.quantization.clone(),
-            prefix_config: self.prefix_config.clone(),
-            dimension: self.dimension,
-        }
+    pub fn signature(&self) -> &VectorSignature {
+        &self.signature
     }
 
-    pub fn is_compatible_with(&self, signature: &VectorSignature) -> bool {
-        self.signature() == *signature
+    pub fn is_compatible_with(&self, sig: &VectorSignature) -> bool {
+        self.signature == *sig
     }
 
     pub fn l2_normalize(vec: &[f32]) -> Result<Vec<f32>, DomainError> {
+        for &val in vec {
+            if val.is_nan() || val.is_infinite() {
+                return Err(DomainError::InvalidNumericValue("Found NaN/Inf in vector".into()));
+            }
+        }
         let norm_sq: f32 = vec.iter().map(|x| x * x).sum();
         let norm = norm_sq.sqrt();
         if norm < 1e-12 {
             return Err(DomainError::ZeroVector);
         }
-        Ok(vec.iter().map(|x| x / norm).collect())
+        let normalized: Vec<f32> = vec.iter().map(|x| x / norm).collect();
+        let check_norm: f32 = normalized.iter().map(|x| x * x).sum::<f32>().sqrt();
+        if (check_norm - 1.0).abs() > 1e-3 {
+            return Err(DomainError::NormOutOfRange(check_norm));
+        }
+        Ok(normalized)
     }
 
-    pub fn truncate_mrl(
-        &self,
-        target_dim: usize,
-    ) -> Result<Self, DomainError> {
+    pub fn truncate_mrl(&self, target_dim: usize) -> Result<Self, DomainError> {
         if target_dim > self.embedding.len() {
             return Err(DomainError::DimensionMismatch {
                 expected: target_dim,
@@ -89,15 +102,15 @@ impl VectorRecord {
         }
         let truncated = &self.embedding[..target_dim];
         let normalized = Self::l2_normalize(truncated)?;
+        let mut new_sig = self.signature.clone();
+        new_sig.dimension = target_dim;
+
         Ok(Self {
             id: Uuid::new_v4(),
             chunk_id: self.chunk_id,
             asset_id: self.asset_id,
             modality: self.modality,
-            model_tag: self.model_tag.clone(),
-            quantization: self.quantization.clone(),
-            prefix_config: self.prefix_config.clone(),
-            dimension: target_dim,
+            signature: new_sig,
             embedding: normalized,
         })
     }
@@ -123,18 +136,21 @@ mod tests {
         let raw = vec![1.0, 2.0, 3.0, 4.0];
         let norm = VectorRecord::l2_normalize(&raw).unwrap();
         let sum_sq: f32 = norm.iter().map(|x| x * x).sum();
-        assert!((sum_sq - 1.0).abs() < 1e-5);
+        assert!((sum_sq - 1.0).abs() < 1e-3);
 
-        let sig = VectorSignature {
-            model_tag: "embeddinggemma-2:740m".to_string(),
-            quantization: "q8_0".to_string(),
-            prefix_config: "v1_prefixed".to_string(),
-            dimension: 4,
-        };
-        let rec = VectorRecord::new(Uuid::new_v4(), Uuid::new_v4(), Modality::Text, &sig, raw).unwrap();
-        let mrl = rec.truncate_mrl(2).unwrap();
-        assert_eq!(mrl.dimension, 2);
+        let sig = VectorSignature::canonical("metal", "search_document");
+        let mut raw_768 = vec![0.1f32; 768];
+        raw_768[0] = 1.0;
+        let rec = VectorRecord::new(Uuid::new_v4(), Uuid::new_v4(), Modality::Text, &sig, raw_768).unwrap();
+        let mrl = rec.truncate_mrl(256).unwrap();
+        assert_eq!(mrl.signature.dimension, 256);
         let mrl_sum_sq: f32 = mrl.embedding.iter().map(|x| x * x).sum();
-        assert!((mrl_sum_sq - 1.0).abs() < 1e-5);
+        assert!((mrl_sum_sq - 1.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn test_nan_rejection() {
+        let invalid = vec![1.0, f32::NAN, 3.0];
+        assert!(VectorRecord::l2_normalize(&invalid).is_err());
     }
 }

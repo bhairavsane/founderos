@@ -2,7 +2,7 @@ use crate::chunking::{AudioChunker, TextChunker};
 use crate::document_parser::{ParsedDocument, ParsedPage};
 use crate::error::PipelineError;
 use founderos_domain::{Asset, Chunk, Modality, VectorRecord};
-use founderos_runtime::EmbeddingAdapter;
+use founderos_runtime::{InferenceProvider, TaskType};
 use founderos_storage::{SqliteStorage, VectorRepository};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -12,7 +12,7 @@ pub type VideoAudioTrack<'a> = (&'a [u8], &'a [(f64, f64, String)], f64);
 pub struct IngestionPipeline {
     storage: SqliteStorage,
     vector_repo: Arc<dyn VectorRepository>,
-    embedding_adapter: Arc<dyn EmbeddingAdapter>,
+    provider: Arc<dyn InferenceProvider>,
     text_chunker: TextChunker,
     audio_chunker: AudioChunker,
 }
@@ -21,12 +21,12 @@ impl IngestionPipeline {
     pub fn new(
         storage: SqliteStorage,
         vector_repo: Arc<dyn VectorRepository>,
-        embedding_adapter: Arc<dyn EmbeddingAdapter>,
+        provider: Arc<dyn InferenceProvider>,
     ) -> Self {
         Self {
             storage,
             vector_repo,
-            embedding_adapter,
+            provider,
             text_chunker: TextChunker::default(),
             audio_chunker: AudioChunker::default(),
         }
@@ -84,7 +84,7 @@ impl IngestionPipeline {
             let chunks = self.text_chunker.chunk_text(asset.id, &page.text, Some(page.page_number as u32));
             for chunk in &chunks {
                 if let Some(ref text) = chunk.text_content {
-                    let vec = self.embedding_adapter.embed_text(text, false).await
+                    let vec = self.provider.embed_text(text, TaskType::DocumentChunk).await
                         .map_err(|e| PipelineError::Extraction(e.to_string()))?;
                     self.store_chunk_and_vec(chunk, vec, Modality::Text).await?;
                 }
@@ -115,7 +115,7 @@ impl IngestionPipeline {
             timestamp_end: None,
             metadata: serde_json::json!({}),
         };
-        let vec = self.embedding_adapter.embed_image(bytes, false).await
+        let vec = self.provider.embed_media(bytes, Modality::Image, TaskType::DocumentChunk).await
             .map_err(|e| PipelineError::Extraction(e.to_string()))?;
         self.store_chunk_and_vec(&chunk, vec, Modality::Image).await?;
 
@@ -136,7 +136,7 @@ impl IngestionPipeline {
 
         let chunks = self.audio_chunker.chunk_audio(asset.id, dur, transcripts);
         for chunk in &chunks {
-            let vec = self.embedding_adapter.embed_audio(bytes, false).await
+            let vec = self.provider.embed_media(bytes, Modality::Audio, TaskType::DocumentChunk).await
                 .map_err(|e| PipelineError::Media(e.to_string()))?;
             self.store_chunk_and_vec(chunk, vec, Modality::Audio).await?;
         }
@@ -166,7 +166,7 @@ impl IngestionPipeline {
                 timestamp_end: Some(*ts + 2.0),
                 metadata: serde_json::json!({ "timestamp": ts }),
             };
-            let vec = self.embedding_adapter.embed_image(img, false).await
+            let vec = self.provider.embed_media(img, Modality::Video, TaskType::DocumentChunk).await
                 .map_err(|e| PipelineError::Media(e.to_string()))?;
             self.store_chunk_and_vec(&chunk, vec, Modality::Video).await?;
         }
@@ -174,7 +174,7 @@ impl IngestionPipeline {
         if let Some((audio_bytes, transcripts, dur)) = audio_track {
             let chunks = self.audio_chunker.chunk_audio(asset.id, dur, transcripts);
             for chunk in &chunks {
-                let vec = self.embedding_adapter.embed_audio(audio_bytes, false).await
+                let vec = self.provider.embed_media(audio_bytes, Modality::Audio, TaskType::DocumentChunk).await
                     .map_err(|e| PipelineError::Media(e.to_string()))?;
                 self.store_chunk_and_vec(chunk, vec, Modality::Audio).await?;
             }

@@ -21,14 +21,18 @@ impl InMemoryVectorStore {
 
 #[async_trait]
 impl VectorRepository for InMemoryVectorStore {
-    async fn insert_vectors(&self, new_records: &[VectorRecord]) -> Result<(), StorageError> {
+    fn active_signature(&self) -> &VectorSignature {
+        &self.signature
+    }
+
+    async fn insert_vectors(&self, records: &[VectorRecord]) -> Result<(), StorageError> {
         let mut store = self.records.write().map_err(|e| StorageError::Vector(e.to_string()))?;
-        for rec in new_records {
+        for rec in records {
             if !rec.is_compatible_with(&self.signature) {
                 return Err(StorageError::IncompatibleSignature(format!(
-                    "Signature mismatch: store has {:?}, record has {:?}",
-                    self.signature,
-                    rec.signature()
+                    "Cannot insert vector with signature {:?} into store with signature {:?}",
+                    rec.signature(),
+                    self.signature
                 )));
             }
             store.push(rec.clone());
@@ -44,7 +48,7 @@ impl VectorRepository for InMemoryVectorStore {
     ) -> Result<Vec<VectorSearchResult>, StorageError> {
         if query.len() != self.signature.dimension {
             return Err(StorageError::Vector(format!(
-                "Query dimension {} != expected {}",
+                "Query dimension {} does not match store dimension {}",
                 query.len(),
                 self.signature.dimension
             )));
@@ -60,7 +64,7 @@ impl VectorRepository for InMemoryVectorStore {
                     asset_id: r.asset_id,
                     modality: r.modality,
                     score: sim,
-                    dimension: r.dimension,
+                    dimension: r.signature.dimension,
                 }
             })
             .collect();
@@ -80,10 +84,6 @@ impl VectorRepository for InMemoryVectorStore {
         let store = self.records.read().map_err(|e| StorageError::Vector(e.to_string()))?;
         Ok(store.len())
     }
-
-    fn active_signature(&self) -> &VectorSignature {
-        &self.signature
-    }
 }
 
 #[cfg(test)]
@@ -92,12 +92,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_vector_store_pinning_and_search() {
-        let sig = VectorSignature {
-            model_tag: "embeddinggemma-2:740m".to_string(),
-            quantization: "q8_0".to_string(),
-            prefix_config: "v1_prefixed".to_string(),
-            dimension: 4,
-        };
+        let mut sig = VectorSignature::canonical("metal", "canonical_v1");
+        sig.dimension = 4;
         let store = InMemoryVectorStore::new(sig.clone());
 
         let aid = Uuid::new_v4();
@@ -115,15 +111,11 @@ mod tests {
         // Query matching exactly
         let results = store.search_vectors(&[1.0, 0.0, 0.0, 0.0], None, 5).await.unwrap();
         assert_eq!(results.len(), 1);
-        assert!((results[0].score - 1.0).abs() < 1e-5);
+        assert!((results[0].score - 1.0).abs() < 1e-3);
 
         // Mismatched signature rejection
-        let diff_sig = VectorSignature {
-            model_tag: "embeddinggemma-2:270m".to_string(),
-            quantization: "f16".to_string(),
-            prefix_config: "none".to_string(),
-            dimension: 4,
-        };
+        let mut diff_sig = sig.clone();
+        diff_sig.model_tag = "embeddinggemma-2:270m".to_string();
         let bad_rec = VectorRecord::new(
             Uuid::new_v4(),
             Uuid::new_v4(),

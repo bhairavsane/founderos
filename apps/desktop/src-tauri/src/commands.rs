@@ -22,6 +22,15 @@ pub struct AskResponsePayload {
     pub citations: Vec<Citation>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InstalledModelInfo {
+    pub name: String,
+    pub filename: String,
+    pub installed: bool,
+    pub size_bytes: u64,
+    pub engine_version: String,
+}
+
 #[tauri::command]
 pub async fn search(
     retriever: tauri::State<'_, Arc<HybridRetriever>>,
@@ -89,6 +98,47 @@ pub async fn get_model_status() -> Result<ModelStatusPayload, String> {
         storage_budget_gb: 10.0,
         storage_used_gb: 1.45,
     })
+}
+
+#[tauri::command]
+pub async fn list_installed_models() -> Result<Vec<InstalledModelInfo>, String> {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let models_dir = std::path::PathBuf::from(home).join(".founderos").join("models");
+    let downloader = founderos_runtime::ModelDownloader::new(models_dir);
+    let manifest = downloader.manifest();
+    let artifacts = [
+        &manifest.embedding_text,
+        &manifest.embedding_projector,
+        &manifest.chat_standard,
+        &manifest.chat_lite,
+    ];
+    let list = artifacts
+        .iter()
+        .map(|a| InstalledModelInfo {
+            name: a.name.clone(),
+            filename: a.filename.clone(),
+            installed: downloader.is_model_installed(&a.filename),
+            size_bytes: a.size_bytes,
+            engine_version: a.engine_version.clone(),
+        })
+        .collect();
+    Ok(list)
+}
+
+#[tauri::command]
+pub async fn download_model(model_name: String) -> Result<String, String> {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let models_dir = std::path::PathBuf::from(home).join(".founderos").join("models");
+    let downloader = founderos_runtime::ModelDownloader::new(models_dir);
+    let artifact = downloader
+        .manifest()
+        .find_artifact(&model_name)
+        .ok_or_else(|| format!("Unknown model: {model_name}"))?;
+    let path = downloader
+        .simulate_download(artifact, None)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
 }
 
 

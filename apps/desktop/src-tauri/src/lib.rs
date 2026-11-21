@@ -3,29 +3,21 @@ pub mod commands;
 use commands::*;
 use founderos_domain::VectorSignature;
 use founderos_pipeline::HybridRetriever;
-use founderos_runtime::SidecarEmbeddingAdapter;
+use founderos_runtime::DeterministicSidecarProvider;
 use founderos_storage::{InMemoryVectorStore, SqliteStorage};
 use std::sync::Arc;
 
 pub fn run() {
-    let sig = VectorSignature {
-        model_tag: "embeddinggemma-2:740m".to_string(),
-        quantization: "q8_0".to_string(),
-        prefix_config: "v1_prefixed".to_string(),
-        dimension: 768,
-    };
+    let sig = VectorSignature::canonical("metal", "canonical_v1");
     let storage = SqliteStorage::open_in_memory().expect("Failed to open SQLite");
     let vector_repo = Arc::new(InMemoryVectorStore::new(sig));
-    let embedding_adapter = Arc::new(SidecarEmbeddingAdapter::new(
-        "sidecar".to_string(),
-        "embeddinggemma-2:740m".to_string(),
-    ));
+    let provider = Arc::new(DeterministicSidecarProvider::new("metal"));
     let pipeline = Arc::new(founderos_pipeline::IngestionPipeline::new(
         storage.clone(),
         vector_repo.clone(),
-        embedding_adapter.clone(),
+        provider.clone(),
     ));
-    let retriever = Arc::new(HybridRetriever::new(storage, vector_repo, embedding_adapter));
+    let retriever = Arc::new(HybridRetriever::new(storage, vector_repo, provider));
 
     tauri::Builder::default()
         .manage(retriever)
@@ -35,6 +27,8 @@ pub fn run() {
             ask,
             list_assets,
             get_model_status,
+            list_installed_models,
+            download_model,
             open_source_file,
             index_directory
         ])
