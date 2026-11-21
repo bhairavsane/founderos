@@ -16,3 +16,5 @@ tracing.workspace = true
 async-trait.workspace = true
 uuid.workspace = true
 chrono.workspace = true
+walkdir = "2.5"
+notify = "6.1"

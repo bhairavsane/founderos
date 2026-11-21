@@ -1,9 +1,10 @@
 use crate::chunking::{AudioChunker, TextChunker};
 use crate::error::PipelineError;
-use founderos_domain::{Asset, Modality, VectorRecord};
+use founderos_domain::{Asset, Chunk, Modality, VectorRecord};
 use founderos_runtime::EmbeddingAdapter;
 use founderos_storage::{SqliteStorage, VectorRepository};
 use std::sync::Arc;
+use uuid::Uuid;
 
 pub struct IngestionPipeline {
     storage: SqliteStorage,
@@ -69,6 +70,61 @@ impl IngestionPipeline {
                     .map_err(|e| PipelineError::Extraction(e.to_string()))?;
             }
         }
+
+        asset.mark_indexed();
+        self.storage
+            .insert_asset(&asset)
+            .map_err(|e| PipelineError::Extraction(e.to_string()))?;
+        Ok(asset)
+    }
+
+    pub async fn ingest_image_asset(
+        &self,
+        file_path: String,
+        file_name: String,
+        image_bytes: &[u8],
+        description: Option<String>,
+    ) -> Result<Asset, PipelineError> {
+        let mut asset = Asset::new(
+            file_path,
+            file_name,
+            "image/png".to_string(),
+            image_bytes.len() as u64,
+            format!("{:x}", image_bytes.len()),
+        );
+        self.storage
+            .insert_asset(&asset)
+            .map_err(|e| PipelineError::Extraction(e.to_string()))?;
+
+        let chunk = Chunk {
+            id: Uuid::new_v4(),
+            asset_id: asset.id,
+            chunk_index: 0,
+            modality: Modality::Image,
+            text_content: description,
+            page_number: None,
+            timestamp_start: None,
+            timestamp_end: None,
+            metadata: serde_json::json!({}),
+        };
+        self.storage
+            .insert_chunk(&chunk)
+            .map_err(|e| PipelineError::Extraction(e.to_string()))?;
+
+        let sig = self.vector_repo.active_signature();
+        let vec = self
+            .embedding_adapter
+            .embed_image(image_bytes, false)
+            .await
+            .map_err(|e| PipelineError::Extraction(e.to_string()))?;
+
+        let rec = VectorRecord::new(chunk.id, asset.id, Modality::Image, sig, vec)
+            .map_err(|e| PipelineError::Extraction(e.to_string()))?;
+
+        self.vector_repo
+            .insert_vectors(&[rec])
+            .await
+            .map_err(|e| PipelineError::Extraction(e.to_string()))?;
 
         asset.mark_indexed();
         self.storage
