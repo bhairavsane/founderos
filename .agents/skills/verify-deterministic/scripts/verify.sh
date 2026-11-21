@@ -49,6 +49,16 @@ if [ -f go.mod ]; then detected=1
   [ $FAST -eq 0 ] && gate build go build ./...
 fi
 
+if [ -f Cargo.toml ]; then detected=1
+  if command -v cargo >/dev/null; then
+    gate lint cargo clippy --all-targets -- -D warnings
+    gate test cargo test --all
+    [ $FAST -eq 0 ] && gate build cargo build --all
+  else
+    skip cargo "cargo not installed"
+  fi
+fi
+
 [ $detected -eq 0 ] && skip project "no supported stack - add checks to verify.sh"
 gate diff-budget bash "$HERE/diff_budget.sh"
 
