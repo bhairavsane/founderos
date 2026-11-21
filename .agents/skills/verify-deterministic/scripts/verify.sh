@@ -51,6 +51,10 @@ fi
 
 if [ -f Cargo.toml ]; then detected=1
   if command -v cargo >/dev/null; then
+    if [ -z "${SDKROOT:-}" ] && [ -d "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" ]; then
+      export SDKROOT="/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
+      export DEVELOPER_DIR="/Library/Developer/CommandLineTools"
+    fi
     gate lint cargo clippy --all-targets -- -D warnings
     gate test cargo test --all
     [ $FAST -eq 0 ] && gate build cargo build --all

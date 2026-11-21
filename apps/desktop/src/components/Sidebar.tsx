@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Sparkles, FolderLibrary, Cpu } from './Icons';
+import { Search, Sparkles, FolderLibrary, Cpu, FounderOSMark } from './Icons';
 import { NavTab } from '../types';
 
 interface SidebarProps {
@@ -27,12 +27,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
       height: '100vh',
       boxSizing: 'border-box'
     }}>
-      <div>
-        <div style={{ fontSize: '15px', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text)' }}>
-          FOUNDEROS
-        </div>
-        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
-          Local Company Intelligence
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <FounderOSMark size={28} />
+        <div>
+          <div style={{ fontSize: '15px', fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--text)' }}>
+            Founder<span style={{ color: 'var(--muted)', fontWeight: 400 }}>OS</span>
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '1px' }}>
+            Local Intelligence
+          </div>
         </div>
       </div>
 

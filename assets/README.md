@@ -32,3 +32,11 @@ Drop-in icon bundle for **Tauri 2** (macOS, Windows, Linux), system tray / menu 
   }
 }
 ```
+
+## Integration Mapping in FounderOS
+
+- **Tauri Bundle**: `assets/src-tauri/icons/` -> `apps/desktop/src-tauri/icons/`
+- **System Tray**: `assets/tray/` -> `apps/desktop/src-tauri/icons/tray/`
+- **Web Favicons & PWA**: `assets/web/` -> `apps/desktop/public/`
+- **Brand Mark in UI**: `assets/svg/founderos-mark.svg` -> `apps/desktop/src/components/Icons.tsx` (`<FounderOSMark />`)
+- **Theme Variables**: `assets/tokens/design-tokens.json` -> `apps/desktop/index.html` (`:root` CSS custom properties)
