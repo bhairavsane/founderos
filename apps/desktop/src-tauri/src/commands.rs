@@ -148,6 +148,21 @@ pub async fn download_model(model_name: String) -> Result<String, String> {
     Ok(path.to_string_lossy().to_string())
 }
 
+#[tauri::command]
+pub async fn import_model(source_path: String, model_name: String) -> Result<String, String> {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let models_dir = std::path::PathBuf::from(home).join(".founderos").join("models");
+    let downloader = founderos_runtime::ModelDownloader::new(models_dir);
+    let artifact = downloader
+        .manifest()
+        .find_artifact(&model_name)
+        .ok_or_else(|| format!("Unknown model: {model_name}"))?;
+    let path = downloader
+        .import_offline_model(Path::new(&source_path), artifact)
+        .map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
+}
+
 
 #[tauri::command]
 pub async fn open_source_file(file_path: String) -> Result<(), String> {

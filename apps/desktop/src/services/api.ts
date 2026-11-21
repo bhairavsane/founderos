@@ -180,3 +180,11 @@ export async function downloadModel(modelName: string): Promise<string> {
   return `/Users/bhairav/.founderos/models/${modelName}`;
 }
 
+export async function importOfflineModel(sourcePath: string, modelName: string): Promise<string> {
+  const invoke = await getInvoke();
+  if (invoke) {
+    return invoke<string>('import_model', { sourcePath, modelName });
+  }
+  return `/Users/bhairav/.founderos/models/${modelName}`;
+}
+
